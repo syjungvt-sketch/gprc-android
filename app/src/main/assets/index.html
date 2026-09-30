@@ -1,0 +1,39 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>G-PRC Practice</title><style>
+*{box-sizing:border-box;touch-action:none}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#e9edf2;font-family:system-ui,sans-serif;color:#172033}
+#app{height:100%;display:flex;flex-direction:column}.top{height:54px;background:white;display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid #ccd3dc}
+.top b{margin-right:auto}button,select{font:inherit;padding:8px 12px;border:1px solid #bdc6d2;border-radius:8px;background:white}
+#start{background:#172033;color:white}.score{font-weight:800}.blue{color:#1769d2}.red{color:#e53935}
+#wrap{position:relative;flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:6px}
+canvas{height:100%;width:auto;max-width:100%;aspect-ratio:6/5;border:2px solid #303641;background:white}
+#joy{position:absolute;right:24px;bottom:20px;width:150px;height:150px;border-radius:50%;background:#17203333;border:3px solid #17203388}
+#stick{position:absolute;width:62px;height:62px;border-radius:50%;background:#172033cc;left:41px;top:41px}
+#press{position:absolute;left:26px;bottom:38px;width:108px;height:108px;border-radius:50%;border:5px solid #a80e0e;background:#e53935;color:white;font-size:19px;font-weight:900}
+#press:active{transform:scale(.94)}#hint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);background:#ffffffdd;padding:4px 9px;border-radius:8px;font-size:12px}
+@media(max-width:700px){#joy{width:125px;height:125px;right:14px;bottom:12px}#stick{width:54px;height:54px;left:33px;top:33px}#press{width:90px;height:90px;left:16px;bottom:25px;font-size:16px}}
+</style></head><body><div id="app">
+<div class="top"><b>G-PRC Practice</b><select id="mode"><option value="cpu">1인 vs CPU</option><option value="two">2인 교대 연습</option></select>
+<span class="score blue">B <span id="bs">4</span></span><span id="tm">60.0</span><span class="score red">R <span id="rs">4</span></span><button id="start">새 경기</button></div>
+<div id="wrap"><canvas id="g" width="720" height="600"></canvas><button id="press">SWITCH</button><div id="joy"><div id="stick"></div></div><div id="hint">RED 조작 · 오른쪽 조이스틱 / 왼쪽 SWITCH</div></div></div>
+<script>
+const cv=document.querySelector('#g'),x=cv.getContext('2d'),joy=document.querySelector('#joy'),stick=document.querySelector('#stick'),press=document.querySelector('#press');
+const tm=document.querySelector('#tm'),rs=document.querySelector('#rs'),bs=document.querySelector('#bs'),mode=document.querySelector('#mode');
+const S=.6,W=720,H=600,C={R:'#e53935',B:'#1769d2'};let sw=[],bots={},run=false,t=60,last=performance.now(),jx=0,jy=0,aiCD=0;
+const layout=[{x:125,y:555,c:'R'},{x:260,y:555,c:'B'},{x:400,y:440,c:'R'},{x:535,y:440,c:'B'},{x:675,y:555,c:'R'},{x:810,y:555,c:'B'},{x:950,y:440,c:'R'},{x:1085,y:440,c:'B'}];
+const mm=v=>v*S,cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+function reset(){sw=layout.map(q=>({x:mm(q.x),y:mm(q.y),c:q.c,n:1}));bots={R:{x:mm(600),y:mm(900),a:-Math.PI/2},B:{x:mm(600),y:mm(100),a:Math.PI/2}};t=60;run=true;aiCD=0;last=performance.now();upd()}
+function score(c){return sw.reduce((a,q)=>a+(q.c===c?q.n:0),0)}function upd(){tm.textContent=t.toFixed(1);rs.textContent=score('R');bs.textContent=score('B')}
+function cycle(q){q.n<5?q.n++:(q.n=1,q.c=q.c==='R'?'B':'R');upd()}
+function near(b){let z=null,d=mm(90),fx=b.x+Math.cos(b.a)*mm(55),fy=b.y+Math.sin(b.a)*mm(55);for(const q of sw){let k=Math.hypot(q.x-fx,q.y-fy);if(k<d){d=k;z=q}}return z}
+function hit(){if(!run)return;let q=near(bots.R);if(q)cycle(q)}
+function move(b,f,tr,dt){b.a+=tr*2.65*dt;let r=mm(55);b.x=cl(b.x+Math.cos(b.a)*f*mm(300)*dt,r,W-r);b.y=cl(b.y+Math.sin(b.a)*f*mm(300)*dt,r,H-r)}
+function ai(dt){if(mode.value!=='cpu')return;let b=bots.B,best=null,bv=-1e9;aiCD-=dt;for(const q of sw){let d=Math.hypot(q.x-b.x,q.y-b.y),gain=q.c==='B'?(q.n<5?1:-5):(q.n===5?6:.55+q.n*.5),v=gain*110-d;if(v>bv){bv=v;best=q}}if(!best)return;let a=Math.atan2(best.y-b.y,best.x-b.x),df=((a-b.a+Math.PI*3)%(Math.PI*2))-Math.PI;if(Math.abs(df)>.12)move(b,0,Math.sign(df),dt);else move(b,1,0,dt);if(near(b)===best&&aiCD<=0){cycle(best);aiCD=.42}}
+function collide(){let a=bots.R,b=bots.B,dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),m=mm(115);if(d&&d<m){let p=(m-d)/2,nx=dx/d,ny=dy/d;a.x-=nx*p;a.y-=ny*p;b.x+=nx*p;b.y+=ny*p}}
+function draw(){x.clearRect(0,0,W,H);x.fillStyle='#dcecff';x.fillRect(0,0,W,H/2);x.fillStyle='#ffe0e0';x.fillRect(0,H/2,W,H/2);x.strokeStyle='#777';x.setLineDash([8,7]);x.beginPath();x.moveTo(0,H/2);x.lineTo(W,H/2);x.stroke();x.setLineDash([]);for(const q of sw){let z=mm(110);x.fillStyle='#111';x.fillRect(q.x-z/2,q.y-z/2,z,z);x.fillStyle=C[q.c];x.fillRect(q.x-z/2+4,q.y-z/2+4,z-8,z-8);x.fillStyle='white';x.textAlign='center';x.font='bold 27px sans-serif';x.fillText(q.n,q.x,q.y+9)}for(const c of ['R','B']){let b=bots[c];x.save();x.translate(b.x,b.y);x.rotate(b.a);x.fillStyle=C[c];x.fillRect(-33,-27,66,54);x.fillStyle='white';x.beginPath();x.moveTo(35,0);x.lineTo(20,-8);x.lineTo(20,8);x.fill();x.restore()}}
+function loop(now){let dt=Math.min(.035,(now-last)/1000);last=now;if(run){t=Math.max(0,t-dt);let mag=Math.min(1,Math.hypot(jx,jy));if(mag>.08){let turn=jx,forward=-jy;move(bots.R,forward,turn,dt)}ai(dt);collide();upd();if(t<=0)run=false}draw();requestAnimationFrame(loop)}
+function joyMove(e){let r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=e.clientX-cx,dy=e.clientY-cy,max=r.width*.32,len=Math.hypot(dx,dy);if(len>max){dx*=max/len;dy*=max/len}jx=dx/max;jy=dy/max;stick.style.transform=`translate(${dx}px,${dy}px)`}
+joy.addEventListener('pointerdown',e=>{joy.setPointerCapture(e.pointerId);joyMove(e)});joy.addEventListener('pointermove',e=>{if(joy.hasPointerCapture(e.pointerId))joyMove(e)});function rel(){jx=jy=0;stick.style.transform='translate(0,0)'}joy.addEventListener('pointerup',rel);joy.addEventListener('pointercancel',rel);
+press.addEventListener('pointerdown',e=>{e.preventDefault();hit()});document.querySelector('#start').onclick=reset;
+reset();run=false;requestAnimationFrame(loop);
+</script></body></html>
